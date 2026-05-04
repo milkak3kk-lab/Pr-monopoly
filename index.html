@@ -1,0 +1,663 @@
+import { useState, useEffect } from "react";
+
+const TEAM_PRESETS = [
+  { color: "#00E5CC", glow: "rgba(0,229,204,0.3)", bg: "rgba(0,229,204,0.08)" },
+  { color: "#FF6B9D", glow: "rgba(255,107,157,0.3)", bg: "rgba(255,107,157,0.08)" },
+  { color: "#FFB800", glow: "rgba(255,184,0,0.3)",  bg: "rgba(255,184,0,0.08)"  },
+];
+
+const BLUE_CARDS = [
+  { id:"b1", type:"blue", emoji:"📱", title:"Гневный отзыв",
+    text:"Клиент написал в соцсетях: «Мне обещали фотосессию на льдине, а по приезду сказали — это платно». Пост набирает репосты.",
+    options:[
+      { type:"bad",  text:"Нанять людей, которые завалят комментарии позитивом и потребовать удалить пост.", verdict:"❌ Нарушение", code:"п. 6.6 АКОС — анонимные агенты влияния", budgetBase:+32, repBase:-42 },
+      { type:"gray", text:"Ответить шаблонным «Спасибо за обратную связь» и больше не реагировать.", verdict:"⚠️ Серая зона", code:"п. 2.2.3 АКОС — несоблюдение обязательств", budgetBase:+12, repBase:-14 },
+      { type:"good", text:"Публично признать ошибку, предложить компенсацию и пересмотреть все рекламные материалы.", verdict:"✅ Этично", code:"п. 2.2.4 АКОС — максимальная прозрачность", budgetBase:-6, repBase:+28 },
+    ]},
+  { id:"b2", type:"blue", emoji:"📊", title:"Фейковый рейтинг",
+    text:"PR-директор предлагает создать «независимый Рейтинг арктических агентств», где агентство — первое, конкуренты — в хвосте. Распространить через тревел-блогеров.",
+    options:[
+      { type:"bad",  text:"Запустить рейтинг — стандартная практика, никто не проверит.", verdict:"❌ Нарушение", code:"п. 2.3.4 АКОС + ст. 14.3 ФЗ «О защите конкуренции»", budgetBase:+38, repBase:-46 },
+      { type:"gray", text:"Создать рейтинг, но без явного упоминания конкурентов.", verdict:"⚠️ Серая зона", code:"п. 5.5 АКОС — публикация под вымышленным именем", budgetBase:+17, repBase:-16 },
+      { type:"good", text:"Отказаться. Вместо этого — честное сравнение своих пакетов с рынком, подписанное от своего имени.", verdict:"✅ Этично", code:"п. 5.6 АКОС — действовать от своего имени", budgetBase:-4, repBase:+22 },
+    ]},
+  { id:"b3", type:"blue", emoji:"📰", title:"Нативная статья",
+    text:"Редактор тревел-журнала предлагает материал «Топ-5 арктических туров», где агентство на первом месте. Статья выйдет без пометки «реклама».",
+    options:[
+      { type:"bad",  text:"Согласиться — нативная реклама так и работает.", verdict:"❌ Нарушение", code:"п. 5.2 и п. 6.9 АКОС — скрытая реклама", budgetBase:+29, repBase:-37 },
+      { type:"gray", text:"Разместить с мелкой сноской «при поддержке» в самом конце.", verdict:"⚠️ Серая зона", code:"п. 5.2 АКОС — маркировка должна быть явной", budgetBase:+13, repBase:-11 },
+      { type:"good", text:"Настоять на полноценной пометке «Реклама» и честном тексте.", verdict:"✅ Этично", code:"п. 5.2 АКОС + ФЗ «О рекламе»", budgetBase:-7, repBase:+26 },
+    ]},
+  { id:"b4", type:"blue", emoji:"🔍", title:"Журналист расследует",
+    text:"Журналист уже знает детали схемы с фейковым рейтингом. Завтра выходит материал.",
+    options:[
+      { type:"bad",  text:"Отрицать всё и пригрозить изданию судебным иском.", verdict:"❌ Нарушение", code:"п. 3.2 АКОС — распространение ложной информации", budgetBase:+9, repBase:-52 },
+      { type:"gray", text:"Без комментариев. Просто переждать.", verdict:"⚠️ Серая зона", code:"п. 5.3 АКОС — обязательство давать СМИ объективную информацию", budgetBase:0, repBase:-18 },
+      { type:"good", text:"Дать полный комментарий, признать нарушения и объявить о реформе коммуникационной политики.", verdict:"✅ Этично", code:"п. 5.3 АКОС — всестороннее взаимодействие со СМИ", budgetBase:-11, repBase:+33 },
+    ]},
+];
+
+const RED_CARDS = [
+  { id:"r1", type:"red", emoji:"⚖️", title:"Конфликт интересов",
+    text:"Вы ведёте крупного клиента. Узнаёте, что конкурент готов заплатить вдвое больше за такую же работу. Оба на туристическом рынке.",
+    options:[
+      { type:"bad",  text:"Тихо переключиться на нового клиента, не уведомив текущего.", verdict:"❌ Нарушение", code:"п. 2.2.4 АКОС — прозрачность и конфиденциальность", budgetBase:+41, repBase:-38 },
+      { type:"gray", text:"Попробовать вести обоих, не раскрывая конфликт.", verdict:"⚠️ Серая зона", code:"п. 2.1 АКОС — принцип честности", budgetBase:+19, repBase:-22 },
+      { type:"good", text:"Раскрыть конфликт интересов текущему клиенту и дать ему выбор.", verdict:"✅ Этично", code:"п. 2.1 АКОС — честность как основной принцип", budgetBase:-8, repBase:+31 },
+    ]},
+  { id:"r2", type:"red", emoji:"🎙️", title:"Правда вредит",
+    text:"Журналист просит комментарий о качестве услуг вашего клиента. Правдивый ответ навредит его репутации. Клиент просит уклониться.",
+    options:[
+      { type:"bad",  text:"Дать заведомо ложный комментарий в выгодном свете.", verdict:"❌ Нарушение", code:"п. 5.4 АКОС — запрет на ложную информацию через СМИ", budgetBase:+27, repBase:-34 },
+      { type:"gray", text:"Отказаться от комментария без объяснений.", verdict:"⚠️ Серая зона", code:"п. 5.3 АКОС — обязательство давать объективную информацию", budgetBase:+6, repBase:-9 },
+      { type:"good", text:"Дать нейтральный фактически точный комментарий. Если клиент настаивает на лжи — отказаться от контракта.", verdict:"✅ Этично", code:"п. 5.3 + п. 2.1 АКОС", budgetBase:-14, repBase:+36 },
+    ]},
+  { id:"r3", type:"red", emoji:"🤖", title:"ИИ-армия ботов",
+    text:"Предлагают запустить сотни постов, написанных ИИ от имени «реальных пользователей», восхваляющих продукт клиента.",
+    options:[
+      { type:"bad",  text:"Запустить — пользователи всё равно не узнают.", verdict:"❌ Нарушение", code:"п. 8.7 АКОС — запрет ИИ для манипуляции", budgetBase:+43, repBase:-47 },
+      { type:"gray", text:"Использовать ИИ для контента, но не скрывать источник.", verdict:"⚠️ Серая зона", code:"п. 8.4 АКОС — необходимо указывать использование ИИ", budgetBase:+14, repBase:-6 },
+      { type:"good", text:"Отказаться. Предложить честную контент-стратегию с реальными амбассадорами.", verdict:"✅ Этично", code:"п. 8.1 + п. 8.7 АКОС", budgetBase:-5, repBase:+24 },
+    ]},
+  { id:"r4", type:"red", emoji:"🌿", title:"Вайтвошинг",
+    text:"Клиент хочет объявить себя «эко-агентством» и запустить кампанию «За чистую Арктику». Реальных изменений не планируется.",
+    options:[
+      { type:"bad",  text:"Запустить кампанию — это просто имиджевый ход.", verdict:"❌ Нарушение", code:"п. 9.11 АКОС — экологические темы должны быть достоверными", budgetBase:+33, repBase:-41 },
+      { type:"gray", text:"Запустить с расплывчатыми обещаниями «наши планы».", verdict:"⚠️ Серая зона", code:"п. 5.4 АКОС — вводящая в заблуждение информация", budgetBase:+16, repBase:-13 },
+      { type:"good", text:"Отказаться до внедрения реальных практик. Предложить помощь в их разработке.", verdict:"✅ Этично", code:"п. 9.2 + п. 9.11 АКОС", budgetBase:-9, repBase:+29 },
+    ]},
+];
+
+const CRISIS_CARDS = [
+  { emoji:"💥", title:"Утечка переписки", text:"Бывший сотрудник слил в сеть переписку, где PR-директор обсуждает схему с фейковым рейтингом. Публикация набирает тысячи просмотров." },
+  { emoji:"⚡", title:"Дело ФАС", text:"ФАС возбудила дело против агентства по факту недобросовестной конкуренции. Журналисты звонят за комментарием. Репутация падает в поисковой выдаче." },
+];
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function jitter(base) {
+  const spread = Math.abs(base) * 0.25;
+  const delta = Math.round((Math.random() * spread * 2 - spread) / 2) * 2;
+  return base + delta;
+}
+
+function prepareCard(card) {
+  return {
+    ...card,
+    options: shuffle(card.options).map((opt, i) => ({
+      ...opt,
+      label: ["А","Б","В"][i],
+      budget: jitter(opt.budgetBase),
+      rep: jitter(opt.repBase),
+    }))
+  };
+}
+
+const css = `
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #040D18; }
+  .root { min-height: 100vh; background: #040D18; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #E8F0FE; overflow-x: hidden; }
+  .stars { position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse at 20% 30%, rgba(0,80,120,.15) 0%, transparent 60%), radial-gradient(ellipse at 80% 70%, rgba(0,60,100,.1) 0%, transparent 60%); }
+  .stars::before { content: ''; position: absolute; inset: 0;
+    background-image: radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,.6) 0%, transparent 100%), radial-gradient(1px 1px at 25% 45%, rgba(255,255,255,.4) 0%, transparent 100%), radial-gradient(1px 1px at 42% 22%, rgba(255,255,255,.5) 0%, transparent 100%), radial-gradient(1px 1px at 60% 62%, rgba(255,255,255,.3) 0%, transparent 100%), radial-gradient(1px 1px at 75% 33%, rgba(255,255,255,.5) 0%, transparent 100%), radial-gradient(1.5px 1.5px at 35% 68%, rgba(0,229,204,.4) 0%, transparent 100%), radial-gradient(1.5px 1.5px at 66% 14%, rgba(0,229,204,.3) 0%, transparent 100%); }
+  .aurora { position: fixed; top: 0; left: 0; right: 0; height: 35vh; background: linear-gradient(180deg, rgba(0,229,204,.07) 0%, transparent 100%); animation: aurora 8s ease-in-out infinite; pointer-events: none; z-index: 0; }
+  .z1 { position: relative; z-index: 1; }
+  @keyframes aurora { 0%,100%{opacity:.3;transform:translateX(-8%) scaleY(1)} 50%{opacity:.65;transform:translateX(5%) scaleY(1.1)} }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes scaleIn { from{opacity:0;transform:scale(.93)} to{opacity:1;transform:scale(1)} }
+  @keyframes cardFlip { from{opacity:0;transform:rotateY(70deg) scale(.92)} to{opacity:1;transform:rotateY(0) scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+  @keyframes popIn { 0%{opacity:0;transform:scale(.7)} 70%{transform:scale(1.06)} 100%{opacity:1;transform:scale(1)} }
+  .afu { animation: fadeUp .45s ease both; }
+  .asi { animation: scaleIn .38s ease both; }
+  .acf { animation: cardFlip .5s ease both; }
+  .api { animation: popIn .32s ease both; }
+  .d1{animation-delay:.08s} .d2{animation-delay:.16s} .d3{animation-delay:.24s} .d4{animation-delay:.32s}
+  .card { background: rgba(10,22,46,.85); border: 1px solid rgba(255,255,255,.07); border-radius: 20px; backdrop-filter: blur(12px); }
+  .btn { cursor: pointer; border: none; font-family: inherit; font-weight: 600; transition: all .2s; outline: none; }
+  .btn:active { transform: scale(.97); }
+  .btn-p { background: linear-gradient(135deg, #00E5CC, #0098A6); color: #040D18; border-radius: 14px; padding: 15px 34px; font-size: 16px; box-shadow: 0 8px 24px rgba(0,229,204,.22); }
+  .btn-p:hover { box-shadow: 0 12px 32px rgba(0,229,204,.38); transform: translateY(-2px); }
+  .btn-c { background: rgba(255,184,0,.1); border: 2px solid #FFB800; color: #FFB800; border-radius: 14px; padding: 13px 26px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-c:hover { background: rgba(255,184,0,.2); }
+  .btn-o { background: transparent; border: 2px solid #00E5CC; color: #00E5CC; border-radius: 13px; padding: 13px 34px; font-size: 14px; }
+  .opt { width: 100%; padding: 16px 18px; border-radius: 13px; background: rgba(8,18,40,.85); border: 2px solid rgba(255,255,255,.07); text-align: left; cursor: pointer; transition: all .22s; font-family: inherit; color: #E8F0FE; }
+  .opt:hover:not(:disabled) { border-color: rgba(0,229,204,.38); background: rgba(0,229,204,.04); transform: translateX(3px); }
+  .opt:disabled { cursor: default; }
+  .opt-g { border-color: #22C55E !important; background: rgba(34,197,94,.08) !important; animation: scaleIn .28s ease; }
+  .opt-y { border-color: #F59E0B !important; background: rgba(245,158,11,.08) !important; animation: shake .38s ease; }
+  .opt-r { border-color: #EF4444 !important; background: rgba(239,68,68,.08) !important; animation: shake .38s ease; }
+  .opt-rg { border-color: rgba(34,197,94,.22) !important; }
+  .opt-ry { border-color: rgba(245,158,11,.18) !important; }
+  .opt-rr { border-color: rgba(239,68,68,.18) !important; }
+  .pb { height: 3px; background: rgba(255,255,255,.05); border-radius: 2px; overflow: hidden; }
+  .pf { height: 100%; border-radius: 2px; background: linear-gradient(90deg,#00E5CC,#0098A6); transition: width .6s ease; }
+  .sb { height: 4px; background: rgba(255,255,255,.05); border-radius: 2px; overflow: hidden; }
+  .sf { height: 100%; border-radius: 2px; transition: width .5s ease; }
+  input { width: 100%; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 11px 14px; color: #E8F0FE; font-size: 15px; outline: none; font-family: inherit; transition: border .2s; }
+  input:focus { border-color: #00E5CC; }
+  ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: rgba(0,229,204,.3); border-radius: 2px; }
+`;
+
+function TimerRing({ s, max, color }) {
+  const r = 24, c = 2 * Math.PI * r;
+  const pct = s / max;
+  const col = pct > 0.4 ? color : pct > 0.2 ? "#F59E0B" : "#EF4444";
+  return (
+    <div style={{ position:"relative", width:58, height:58, flexShrink:0 }}>
+      <svg width="58" height="58" style={{ transform:"rotate(-90deg)" }}>
+        <circle cx="29" cy="29" r={r} fill="none" stroke="rgba(255,255,255,.05)" strokeWidth="3"/>
+        <circle id="trf" cx="29" cy="29" r={r} fill="none" stroke={col} strokeWidth="3"
+          strokeDasharray={c} strokeDashoffset={c*(1-pct)} strokeLinecap="round"
+          style={{ transition:"stroke-dashoffset 1s linear, stroke .3s" }}/>
+      </svg>
+      <div id="ttx" style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:col }}>{s}</div>
+    </div>
+  );
+}
+
+function ScoreBar({ value, label, color, icon }) {
+  return (
+    <div style={{ flex:1 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+        <span style={{ fontSize:10, color:"rgba(255,255,255,.32)", letterSpacing:1, textTransform:"uppercase" }}>{icon} {label}</span>
+        <span style={{ fontSize:17, fontWeight:700, color }}>{value}</span>
+      </div>
+      <div className="sb"><div className="sf" style={{ width:`${Math.min(100,value/2)}%`, background:color }}/></div>
+    </div>
+  );
+}
+
+function TeamCard({ team, isActive }) {
+  return (
+    <div style={{ flex:1, minWidth:130, borderRadius:14, padding:13, border:`1px solid ${isActive?team.color:"rgba(255,255,255,.05)"}`, background:"rgba(8,16,36,.72)", transition:"all .3s", boxShadow:isActive?`0 0 20px ${team.glow}, inset 0 0 16px rgba(0,0,0,.3)`:"none" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+        <div style={{ width:7, height:7, borderRadius:"50%", background:team.color, boxShadow:isActive?`0 0 8px ${team.color}`:"none", flexShrink:0 }}/>
+        <div style={{ fontSize:12, fontWeight:600, color:isActive?team.color:"rgba(255,255,255,.6)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{team.name}</div>
+        {isActive && <div style={{ fontSize:9, color:team.color, letterSpacing:1, textTransform:"uppercase", flexShrink:0 }}>ХОД</div>}
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+        <ScoreBar value={team.budget} label="Бюджет"    color="#4ADE80" icon="💰"/>
+        <ScoreBar value={team.rep}    label="Репутация" color="#C084FC" icon="⭐"/>
+      </div>
+    </div>
+  );
+}
+
+// ─── SETUP ───────────────────────────────────────────────────────────────────
+function SetupScreen({ onStart }) {
+  const [count, setCount] = useState(3);
+  const [names, setNames] = useState(["","",""]);
+
+  return (
+    <div className="root">
+      <style>{css}</style>
+      <div className="stars"/><div className="aurora"/>
+      <div className="z1" style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"100vh", padding:24 }}>
+        <div className="afu" style={{ textAlign:"center", marginBottom:36 }}>
+          <div style={{ fontSize:11, letterSpacing:5, color:"#00E5CC", marginBottom:10, textTransform:"uppercase", opacity:.8 }}>Интерактивная игра</div>
+          <h1 style={{ fontFamily:"Georgia,serif", fontSize:"clamp(28px,5vw,48px)", lineHeight:1.1, marginBottom:10, fontWeight:700 }}>
+            PR-Монополия<br/><span style={{ color:"#00E5CC" }}>Северный ветер</span>
+          </h1>
+          <p style={{ color:"rgba(255,255,255,.38)", fontSize:14, maxWidth:380 }}>Кто докажет: быть честным — выгоднее, чем манипулировать?</p>
+        </div>
+
+        <div className="card afu d2" style={{ width:"100%", maxWidth:440, padding:28 }}>
+          <div style={{ marginBottom:22 }}>
+            <div style={{ fontSize:10, letterSpacing:3, color:"rgba(255,255,255,.28)", textTransform:"uppercase", marginBottom:12 }}>Число команд</div>
+            <div style={{ display:"flex", gap:10 }}>
+              {[2,3].map(n => (
+                <button key={n} className="btn" onClick={() => setCount(n)} style={{
+                  flex:1, padding:"13px 0", borderRadius:11, fontSize:20, fontWeight:700,
+                  border:`2px solid ${count===n?"#00E5CC":"rgba(255,255,255,.07)"}`,
+                  background:count===n?"rgba(0,229,204,.09)":"transparent",
+                  color:count===n?"#00E5CC":"rgba(255,255,255,.28)", transition:"all .2s"
+                }}>{n}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom:28 }}>
+            <div style={{ fontSize:10, letterSpacing:3, color:"rgba(255,255,255,.28)", textTransform:"uppercase", marginBottom:12 }}>Придумайте названия команд</div>
+            {TEAM_PRESETS.slice(0,count).map((t,i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:9, marginBottom:9 }}>
+                <div style={{ width:9, height:9, borderRadius:"50%", background:t.color, flexShrink:0 }}/>
+                <input
+                  value={names[i]}
+                  onChange={e => setNames(p => { const n=[...p]; n[i]=e.target.value; return n; })}
+                  placeholder={`Название агентства ${i+1}...`}
+                  style={{ flex:1 }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <button className="btn btn-p" style={{ width:"100%" }}
+            onClick={() => onStart(count, names.slice(0,count))}>
+            Далее →
+          </button>
+        </div>
+
+        <div className="afu d4" style={{ marginTop:22, display:"flex", gap:18, color:"rgba(255,255,255,.18)", fontSize:12 }}>
+          <span>🔵 Кейс «Сев. ветра»</span><span>🔴 Этика в PR</span><span>⚡ Кризис</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── INTRO ────────────────────────────────────────────────────────────────────
+function IntroScreen({ teams, onStart }) {
+  const rules = [
+    { icon:"🎴", color:"#00E5CC", title:"Тяни карточку", text:"Каждый ход команда тянет карточку — синюю (кейс «Северного ветра») или красную (этика PR). На карточке — реальная ситуация." },
+    { icon:"🗣️", color:"#C084FC", title:"30 секунд обсуждения", text:"Команда обсуждает вслух и выбирает один из трёх вариантов: А, Б или В. Порядок и баллы — каждый раз разные." },
+    { icon:"⚡", color:"#FFB800", title:"Кризис-карта", text:"Один раз за игру каждая команда может сыграть кризис-карту. Нет вариантов — нужно придумать ответ за 60 секунд. Аудитория голосует." },
+    { icon:"🏆", color:"#4ADE80", title:"Победитель", text:"Побеждает агентство с наибольшей суммой бюджета и репутации. Быть честным — выгоднее, чем манипулировать." },
+  ];
+
+  return (
+    <div className="root">
+      <style>{css}</style>
+      <div className="stars"/><div className="aurora"/>
+      <div className="z1" style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"100vh", padding:24 }}>
+        <div style={{ width:"100%", maxWidth:560 }}>
+
+          <div className="afu" style={{ textAlign:"center", marginBottom:28 }}>
+            <div style={{ fontSize:11, letterSpacing:5, color:"#00E5CC", marginBottom:8, textTransform:"uppercase", opacity:.8 }}>Добро пожаловать в игру</div>
+            <h1 style={{ fontFamily:"Georgia,serif", fontSize:"clamp(24px,4vw,38px)", lineHeight:1.15, marginBottom:10, fontWeight:700 }}>
+              PR-Монополия<br/><span style={{ color:"#00E5CC" }}>Северный ветер</span>
+            </h1>
+            <p style={{ color:"rgba(255,255,255,.4)", fontSize:14, maxWidth:420, margin:"0 auto", lineHeight:1.7 }}>
+              Вы — конкурирующие PR-агентства. Каждое решение влияет на два показателя:{" "}
+              <span style={{ color:"#4ADE80" }}>💰 бюджет</span> и{" "}
+              <span style={{ color:"#C084FC" }}>⭐ репутацию</span>. Побеждает тот, у кого их сумма больше.
+            </p>
+          </div>
+
+          {/* Команды */}
+          <div className="card afu d1" style={{ padding:18, marginBottom:16 }}>
+            <div style={{ fontSize:10, letterSpacing:3, color:"rgba(255,255,255,.28)", textTransform:"uppercase", marginBottom:12 }}>Команды-участники</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {teams.map((t,i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:10, background:"rgba(255,255,255,.04)", border:`1px solid ${t.color}33` }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:t.color, boxShadow:`0 0 8px ${t.color}`, flexShrink:0 }}/>
+                  <span style={{ fontWeight:600, color:t.color, fontSize:14 }}>{t.name}</span>
+                  <span style={{ marginLeft:"auto", fontSize:11, color:"rgba(255,255,255,.3)" }}>💰 100 &nbsp; ⭐ 100</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Правила */}
+          <div className="card afu d2" style={{ padding:18, marginBottom:18 }}>
+            <div style={{ fontSize:10, letterSpacing:3, color:"rgba(255,255,255,.28)", textTransform:"uppercase", marginBottom:14 }}>Как играть</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {rules.map((r,i) => (
+                <div key={i} style={{ display:"flex", gap:12, alignItems:"flex-start", padding:"12px 14px", borderRadius:12, background:"rgba(255,255,255,.03)", border:"1px solid rgba(255,255,255,.06)" }}>
+                  <span style={{ fontSize:20, flexShrink:0, marginTop:2 }}>{r.icon}</span>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:r.color, marginBottom:3 }}>{r.title}</div>
+                    <div style={{ fontSize:12, color:"rgba(255,255,255,.5)", lineHeight:1.6 }}>{r.text}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Типы карточек */}
+          <div className="afu d3" style={{ display:"flex", gap:10, marginBottom:20, flexWrap:"wrap" }}>
+            {[
+              { color:"rgba(59,130,246,.08)", border:"rgba(59,130,246,.2)", tc:"#93C5FD", icon:"🔵", label:"Синие карточки", sub:"Кейс «Северного ветра»" },
+              { color:"rgba(239,68,68,.08)",  border:"rgba(239,68,68,.2)",  tc:"#FCA5A5", icon:"🔴", label:"Красные карточки", sub:"Общая этика в PR" },
+              { color:"rgba(255,184,0,.08)",  border:"rgba(255,184,0,.2)",  tc:"#FFB800", icon:"⚡", label:"Кризис-карта", sub:"1 раз на команду" },
+            ].map((b,i) => (
+              <div key={i} style={{ flex:1, minWidth:110, padding:12, borderRadius:12, background:b.color, border:`1px solid ${b.border}`, textAlign:"center" }}>
+                <div style={{ fontSize:18, marginBottom:4 }}>{b.icon}</div>
+                <div style={{ fontSize:11, fontWeight:700, color:b.tc, marginBottom:3 }}>{b.label}</div>
+                <div style={{ fontSize:11, color:"rgba(255,255,255,.35)" }}>{b.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          <button className="btn btn-p afu d4" style={{ width:"100%", fontSize:17, padding:17 }} onClick={onStart}>
+            Начать игру →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── GAME ─────────────────────────────────────────────────────────────────────
+function GameScreen({ teams: initTeams, totalRounds, onEnd }) {
+  const [teams, setTeams] = useState(initTeams);
+  const [deck] = useState(() => shuffle([...BLUE_CARDS,...BLUE_CARDS,...RED_CARDS,...RED_CARDS]));
+  const [deckIdx, setDeckIdx] = useState(0);
+  const [crisisDeck] = useState(() => shuffle(CRISIS_CARDS));
+  const [crisisIdx, setCrisisIdx] = useState(0);
+  const [curTeam, setCurTeam] = useState(0);
+  const [phase, setPhase] = useState("idle");
+  const [card, setCard] = useState(null);
+  const [chosen, setChosen] = useState(null);
+  const [timer, setTimer] = useState(30);
+  const [tMax, setTMax] = useState(30);
+  const [tRun, setTRun] = useState(false);
+  const [crisisCard, setCrisisCard] = useState(null);
+  const [votes, setVotes] = useState([0,0,0]);
+  const [round, setRound] = useState(1);
+  const [delta, setDelta] = useState(null);
+
+  useEffect(() => {
+    if (!tRun || timer <= 0) { if(timer<=0) setTRun(false); return; }
+    const t = setTimeout(() => setTimer(s => s-1), 1000);
+    return () => clearTimeout(t);
+  }, [timer, tRun]);
+
+  useEffect(() => {
+    if (delta) { const t = setTimeout(() => setDelta(null), 2600); return () => clearTimeout(t); }
+  }, [delta]);
+
+  const ct = teams[curTeam];
+
+  const drawCard = () => {
+    setCard(prepareCard(deck[deckIdx % deck.length]));
+    setDeckIdx(i => i+1);
+    setChosen(null); setTimer(30); setTMax(30); setTRun(true); setPhase("card");
+  };
+
+  const drawCrisis = () => {
+    setCrisisCard(crisisDeck[crisisIdx % crisisDeck.length]);
+    setCrisisIdx(i => i+1);
+    setTeams(p => p.map((t,i) => i===curTeam ? {...t, crisisUsed:true} : t));
+    setTimer(60); setTMax(60); setTRun(true); setPhase("crisis");
+  };
+
+  const choose = (opt, idx) => {
+    if (chosen !== null) return;
+    setChosen(idx); setTRun(false);
+    setTeams(p => p.map((t,i) => i===curTeam ? {
+      ...t,
+      budget: Math.max(0, Math.min(200, t.budget + opt.budget)),
+      rep:    Math.max(0, Math.min(200, t.rep    + opt.rep))
+    } : t));
+    setDelta({ budget:opt.budget, rep:opt.rep });
+    setPhase("result");
+  };
+
+  const next = () => {
+    if (round >= totalRounds) { onEnd(teams); return; }
+    setRound(r => r+1);
+    setCurTeam(t => (t+1) % teams.length);
+    setPhase("idle"); setCard(null); setChosen(null);
+  };
+
+  const endVote = () => {
+    const mx = Math.max(...votes.slice(0, teams.length));
+    if (mx > 0) setTeams(p => p.map((t,i) => votes[i]===mx ? {...t, rep:Math.min(200,t.rep+30)} : t));
+    setVotes([0,0,0]); next();
+  };
+
+  const optClass = (opt, idx) => {
+    if (chosen === null) return "";
+    const isG = opt.type==="good", isY = opt.type==="gray";
+    if (idx === chosen) return isG?"opt-g":isY?"opt-y":"opt-r";
+    return isG?"opt-rg":isY?"opt-ry":"opt-rr";
+  };
+
+  const vc = v => v.startsWith("✅")?"#4ADE80":v.startsWith("⚠️")?"#F59E0B":"#F87171";
+  const pr = Math.round(round/totalRounds*100);
+
+  return (
+    <div className="root">
+      <style>{css}</style>
+      <div className="stars"/>
+      <div className="z1" style={{ maxWidth:680, margin:"0 auto", padding:"18px 14px 40px" }}>
+
+        {/* Scores */}
+        <div style={{ display:"flex", gap:9, marginBottom:16, flexWrap:"wrap" }}>
+          {teams.map((t,i) => <TeamCard key={i} team={t} isActive={i===curTeam}/>)}
+        </div>
+
+        {/* Progress */}
+        <div style={{ marginBottom:18 }}>
+          <div className="pb"><div className="pf" style={{ width:`${pr}%` }}/></div>
+          <div style={{ display:"flex", justifyContent:"space-between", marginTop:5, fontSize:10, color:"rgba(255,255,255,.2)", letterSpacing:1 }}>
+            <span>РАУНД {round} / {totalRounds}</span><span>{pr}%</span>
+          </div>
+        </div>
+
+        {/* IDLE */}
+        {phase==="idle" && (
+          <div className="card asi" style={{ padding:30, textAlign:"center" }}>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,.28)", letterSpacing:3, textTransform:"uppercase", marginBottom:7 }}>Ход команды</div>
+            <div style={{ fontFamily:"Georgia,serif", fontSize:26, fontWeight:700, color:ct.color, marginBottom:28 }}>{ct.name}</div>
+            <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
+              <button className="btn btn-p" onClick={drawCard}>🎴 Тянуть карточку</button>
+              {!ct.crisisUsed && <button className="btn btn-c" onClick={drawCrisis}>⚡ Кризис-карта</button>}
+            </div>
+            {ct.crisisUsed && <div style={{ marginTop:14, fontSize:11, color:"rgba(255,255,255,.18)" }}>Кризис-карта уже сыграна</div>}
+          </div>
+        )}
+
+        {/* CARD / RESULT */}
+        {(phase==="card"||phase==="result") && card && (
+          <div className="acf">
+            <div className="card" style={{ padding:"22px 22px 26px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
+                <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 11px", borderRadius:20, fontSize:11, fontWeight:700,
+                  background:card.type==="blue"?"rgba(59,130,246,.14)":"rgba(239,68,68,.14)",
+                  color:card.type==="blue"?"#93C5FD":"#FCA5A5",
+                  border:`1px solid ${card.type==="blue"?"rgba(59,130,246,.28)":"rgba(239,68,68,.28)"}` }}>
+                  {card.type==="blue"?"🔵 КЕЙС":"🔴 ЭТИКА В PR"}
+                </span>
+                {phase==="card" ? (
+                  <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                    <button onClick={() => setTRun(r=>!r)} className="btn" style={{ background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.09)", color:"rgba(255,255,255,.45)", borderRadius:7, padding:"3px 9px", fontSize:12 }}>
+                      {tRun?"⏸":"▶"}
+                    </button>
+                    <TimerRing s={timer} max={tMax} color={ct.color}/>
+                  </div>
+                ) : <div style={{ fontSize:11, color:"rgba(255,255,255,.22)", letterSpacing:1 }}>ВЫБОР СДЕЛАН</div>}
+              </div>
+
+              <div style={{ marginBottom:20 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:9 }}>
+                  <span style={{ fontSize:26 }}>{card.emoji}</span>
+                  <h2 style={{ fontFamily:"Georgia,serif", fontSize:21, fontWeight:700, color:"#E8F0FE" }}>{card.title}</h2>
+                </div>
+                <p style={{ color:"rgba(255,255,255,.52)", fontSize:14, lineHeight:1.8 }}>{card.text}</p>
+              </div>
+
+              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                {card.options.map((opt, i) => (
+                  <button key={i} className={`btn opt ${optClass(opt,i)}`}
+                    onClick={() => choose(opt, i)} disabled={phase==="result"}>
+                    <div style={{ display:"flex", gap:11, alignItems:"flex-start" }}>
+                      <div style={{ width:26, height:26, borderRadius:"50%", flexShrink:0, background:"rgba(255,255,255,.05)", display:"flex", alignItems:"center", justifyContent:"center",
+                        color: chosen===i ? (opt.type==="good"?"#4ADE80":opt.type==="gray"?"#F59E0B":"#EF4444") : "#00E5CC",
+                        fontSize:11, fontWeight:700 }}>{opt.label}</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ color:"rgba(255,255,255,.72)", fontSize:14, lineHeight:1.65 }}>{opt.text}</div>
+                        {phase==="result" && (
+                          <div className="afu" style={{ marginTop:9, display:"flex", gap:7, flexWrap:"wrap", alignItems:"center" }}>
+                            <span className="api" style={{ fontSize:12, padding:"3px 10px", borderRadius:20, fontWeight:700, background:opt.budget>=0?"rgba(74,222,128,.11)":"rgba(239,68,68,.11)", color:opt.budget>=0?"#4ADE80":"#F87171" }}>
+                              💰 {opt.budget>=0?"+":""}{opt.budget}
+                            </span>
+                            <span className="api d1" style={{ fontSize:12, padding:"3px 10px", borderRadius:20, fontWeight:700, background:opt.rep>=0?"rgba(192,132,252,.11)":"rgba(239,68,68,.11)", color:opt.rep>=0?"#C084FC":"#F87171" }}>
+                              ⭐ {opt.rep>=0?"+":""}{opt.rep}
+                            </span>
+                            <span className="api d2" style={{ fontSize:12, fontWeight:700, color:vc(opt.verdict) }}>{opt.verdict}</span>
+                            <span style={{ fontSize:11, color:"rgba(255,255,255,.28)", fontStyle:"italic" }}>{opt.code}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {phase==="result" && (
+                <button className="btn btn-p" style={{ width:"100%", marginTop:18 }} onClick={next}>
+                  {round>=totalRounds?"Завершить игру →":"Следующий ход →"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* CRISIS */}
+        {phase==="crisis" && crisisCard && (
+          <div className="card asi" style={{ padding:30, textAlign:"center", borderColor:"rgba(255,184,0,.28)", boxShadow:"0 0 36px rgba(255,184,0,.09)" }}>
+            <div style={{ fontSize:44, marginBottom:10 }}>{crisisCard.emoji}</div>
+            <div style={{ fontSize:10, letterSpacing:4, color:"#FFB800", textTransform:"uppercase", marginBottom:7 }}>Кризис-карта</div>
+            <h2 style={{ fontFamily:"Georgia,serif", fontSize:22, fontWeight:700, color:"#FEF3C7", marginBottom:18 }}>{crisisCard.title}</h2>
+            <div style={{ background:"rgba(255,184,0,.05)", border:"1px solid rgba(255,184,0,.18)", borderRadius:13, padding:18, marginBottom:24 }}>
+              <p style={{ color:"rgba(255,235,150,.78)", fontSize:14, lineHeight:1.8 }}>{crisisCard.text}</p>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:14, marginBottom:18 }}>
+              <TimerRing s={timer} max={60} color="#FFB800"/>
+              <div style={{ textAlign:"left" }}>
+                <div style={{ color:"rgba(255,255,255,.45)", fontSize:13, marginBottom:7 }}>
+                  Команда <span style={{ color:ct.color, fontWeight:600 }}>{ct.name}</span> отвечает вслух
+                </div>
+                <div style={{ display:"flex", gap:7 }}>
+                  <button onClick={() => setTRun(r=>!r)} className="btn" style={{ background:"rgba(255,184,0,.1)", border:"1px solid rgba(255,184,0,.28)", color:"#FFB800", borderRadius:7, padding:"5px 12px", fontSize:12 }}>
+                    {tRun?"⏸ Пауза":"▶ Старт"}
+                  </button>
+                  <button onClick={() => { setTimer(60); setTRun(false); }} className="btn" style={{ background:"rgba(255,255,255,.04)", border:"1px solid rgba(255,255,255,.09)", color:"rgba(255,255,255,.38)", borderRadius:7, padding:"5px 12px", fontSize:12 }}>↺</button>
+                </div>
+              </div>
+            </div>
+            <button className="btn" onClick={() => setPhase("vote")} style={{ background:"#FFB800", color:"#1C1205", borderRadius:12, padding:"13px 30px", fontSize:15, fontWeight:700 }}>
+              Голосование →
+            </button>
+          </div>
+        )}
+
+        {/* VOTE */}
+        {phase==="vote" && (
+          <div className="card asi" style={{ padding:30, textAlign:"center" }}>
+            <div style={{ fontSize:10, letterSpacing:4, color:"#FFB800", textTransform:"uppercase", marginBottom:7 }}>Голосование аудитории</div>
+            <h2 style={{ fontFamily:"Georgia,serif", fontSize:20, fontWeight:700, marginBottom:5 }}>Чей ответ убедил больше всего?</h2>
+            <p style={{ color:"rgba(255,255,255,.28)", fontSize:12, marginBottom:24 }}>+30 к репутации победителя</p>
+            <div style={{ display:"flex", flexDirection:"column", gap:9, marginBottom:22 }}>
+              {teams.map((t,i) => (
+                <button key={i} className="btn" onClick={() => setVotes(p => { const v=[...p]; v[i]++; return v; })}
+                  style={{ padding:"14px 18px", borderRadius:12, border:`2px solid ${t.color}`, background:votes[i]>0?t.bg:"transparent", color:t.color, display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:14, fontWeight:600 }}>
+                  <span>{t.name}</span>
+                  <span style={{ background:`${t.color}22`, padding:"3px 13px", borderRadius:20, fontSize:15, fontWeight:700 }}>{votes[i]}</span>
+                </button>
+              ))}
+            </div>
+            <button className="btn btn-p" onClick={endVote}>Завершить раунд →</button>
+          </div>
+        )}
+
+        {/* Delta popup */}
+        {delta && (
+          <div style={{ position:"fixed", top:18, right:18, zIndex:200, background:"rgba(6,16,38,.96)", border:"1px solid rgba(0,229,204,.18)", borderRadius:13, padding:"12px 18px", backdropFilter:"blur(14px)", animation:"popIn .3s ease" }}>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,.35)", marginBottom:5 }}>{ct.name}</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <span style={{ fontWeight:700, fontSize:15, color:delta.budget>=0?"#4ADE80":"#F87171" }}>💰 {delta.budget>=0?"+":""}{delta.budget}</span>
+              <span style={{ fontWeight:700, fontSize:15, color:delta.rep>=0?"#C084FC":"#F87171" }}>⭐ {delta.rep>=0?"+":""}{delta.rep}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── END ──────────────────────────────────────────────────────────────────────
+function EndScreen({ teams, onRestart }) {
+  const sorted = [...teams].sort((a,b) => (b.budget+b.rep)-(a.budget+a.rep));
+  const win = sorted[0], mx = win.budget+win.rep;
+
+  return (
+    <div className="root">
+      <style>{css}</style>
+      <div className="stars"/><div className="aurora"/>
+      <div className="z1" style={{ maxWidth:520, margin:"0 auto", padding:28, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"100vh" }}>
+        <div className="afu" style={{ textAlign:"center", marginBottom:32 }}>
+          <div style={{ fontSize:44, marginBottom:10 }}>🏆</div>
+          <div style={{ fontSize:10, letterSpacing:5, color:"#00E5CC", textTransform:"uppercase", marginBottom:7 }}>Игра окончена</div>
+          <h1 style={{ fontFamily:"Georgia,serif", fontSize:30, fontWeight:700 }}>
+            Победитель:<br/><span style={{ color:win.color }}>{win.name}</span>
+          </h1>
+          <div style={{ color:"rgba(255,255,255,.28)", marginTop:5, fontSize:13 }}>{win.budget+win.rep} очков</div>
+        </div>
+
+        <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:11, marginBottom:28 }}>
+          {sorted.map((t,i) => {
+            const tot = t.budget+t.rep;
+            return (
+              <div key={i} className="card afu" style={{ padding:"16px 20px", borderColor:i===0?t.color:"rgba(255,255,255,.06)", boxShadow:i===0?`0 0 28px ${t.glow}`:"none", animationDelay:`${i*.1}s`, opacity:0 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:9 }}>
+                  <div style={{ display:"flex", gap:9, alignItems:"center" }}>
+                    <span style={{ color:"rgba(255,255,255,.2)", fontSize:20, fontWeight:700 }}>#{i+1}</span>
+                    <div style={{ width:8, height:8, borderRadius:"50%", background:t.color }}/>
+                    <span style={{ color:t.color, fontWeight:700 }}>{t.name}</span>
+                  </div>
+                  <span style={{ fontWeight:700, fontSize:19 }}>{tot}</span>
+                </div>
+                <div style={{ display:"flex", gap:2, height:5, borderRadius:3, overflow:"hidden", marginBottom:5 }}>
+                  <div style={{ width:`${(t.budget/mx)*100}%`, background:"#4ADE80", transition:"width 1s" }}/>
+                  <div style={{ width:`${(t.rep/mx)*100}%`, background:"#C084FC", transition:"width 1s" }}/>
+                </div>
+                <div style={{ display:"flex", gap:14 }}>
+                  <span style={{ fontSize:11, color:"#4ADE80" }}>💰 {t.budget}</span>
+                  <span style={{ fontSize:11, color:"#C084FC" }}>⭐ {t.rep}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="card afu d3" style={{ padding:22, marginBottom:24, width:"100%", borderColor:"rgba(0,229,204,.14)", textAlign:"center", opacity:0 }}>
+          <div style={{ fontSize:10, letterSpacing:3, color:"#00E5CC", textTransform:"uppercase", marginBottom:9 }}>Вывод</div>
+          <p style={{ color:"rgba(255,255,255,.45)", fontSize:13, lineHeight:1.85 }}>
+            Манипулятивные PR-практики дают краткосрочный прирост бюджета, но системно разрушают репутацию. Этичная коммуникация — дороже в моменте, но устойчивее в долгосрочной перспективе.
+            <br/><em style={{ color:"rgba(255,255,255,.28)" }}>«Репутация зависит не только от законов, но и от этических стандартов» — п. 12.2 Кодекса АКОС</em>
+          </p>
+        </div>
+
+        <button className="btn btn-o afu d4" onClick={onRestart} style={{ opacity:0 }}>↺ Сыграть заново</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [screen, setScreen] = useState("setup");
+  const [teams, setTeams] = useState([]);
+  const [totalRounds, setTotalRounds] = useState(6);
+
+  const handleSetup = (count, names) => {
+    const t = TEAM_PRESETS.slice(0, count).map((p, i) => ({
+      ...p,
+      name: names[i].trim() || `Агентство ${i+1}`,
+      budget: 100, rep: 100, crisisUsed: false
+    }));
+    setTeams(t);
+    setTotalRounds(count * 2);
+    setScreen("intro");
+  };
+
+  return (
+    <>
+      {screen==="setup" && <SetupScreen onStart={handleSetup}/>}
+      {screen==="intro" && <IntroScreen teams={teams} onStart={() => setScreen("game")}/>}
+      {screen==="game" && <GameScreen teams={teams} totalRounds={totalRounds} onEnd={t => { setTeams(t); setScreen("end"); }}/>}
+      {screen==="end"  && <EndScreen  teams={teams} onRestart={() => setScreen("setup")}/>}
+    </>
+  );
+}
